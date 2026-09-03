@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-labelledby="title">
+  <title>Logo WH</title>
+  <path fill="#171819" d="M100 11 177 55v90l-77 44-77-44V55l77-44Zm0 18L39 64v72l61 35 61-35V64l-61-35Z"/>
+  <path fill="#171819" d="M47 68 60 60v46l10-26 10 27 12-29V42l13-7v67l-13 8V91l-12 28-10-28v53l-23-13V68Z"/>
+  <path fill="#171819" d="M104 42h15v47h18V61l15 9v59l-15 9v-34h-18v47l-15 8V42Z"/>
+</svg>

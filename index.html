@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>WH | Gerador de Etiquetas com QR Code</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+</head>
+<body>
+
+<div class="app">
+  <div class="panel">
+    <div class="brand-row">
+      <div class="brand-mark">QR</div>
+      <div>
+        <h1>Gerador de etiquetas</h1>
+        <p class="eyebrow">Tecnologia • Organização • Controle</p>
+      </div>
+    </div>
+    <p class="sub">Monte suas etiquetas com rapidez e precisão, mantendo o QR original, o número curto e o número longo.</p>
+
+    <nav class="tabs" aria-label="Seções do gerador">
+      <button class="tab is-active" type="button" data-tab="dados">Dados</button>
+      <button class="tab" type="button" data-tab="layout">Layout</button>
+    </nav>
+
+    <div class="tab-content is-active" data-tab-content="dados">
+    <fieldset>
+      <legend>Dados da empresa (cabeçalho)</legend>
+      <label>Nome da empresa</label>
+      <input type="text" id="companyName" value="WH INFORMATICA E SEGURANCA LTDA">
+      <label>Telefone</label>
+      <input type="text" id="companyPhone" value="31 98299.3299">
+      <label>E-mail</label>
+      <input type="text" id="companyEmail" value="suporte@whinfoseg.com.br">
+    </fieldset>
+
+    <fieldset>
+      <legend>Tamanho da etiqueta e da folha</legend>
+      <div class="row">
+        <div>
+          <label>Largura (mm)</label>
+          <input type="number" id="labelW" value="40" min="20" max="100">
+        </div>
+        <div>
+          <label>Altura (mm)</label>
+          <input type="number" id="labelH" value="60" min="20" max="120">
+        </div>
+      </div>
+      <label>Tamanho da folha</label>
+      <select id="sheetPreset" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:4px;font-size:13.5px;">
+        <option value="210x297">A4 (210 x 297mm)</option>
+        <option value="216x330">Ofício (216 x 330mm)</option>
+        <option value="216x279">Carta / Letter (216 x 279mm)</option>
+        <option value="297x420">A3 (297 x 420mm)</option>
+        <option value="custom">Personalizado</option>
+      </select>
+      <div class="row" id="customSheetWrap" style="display:none;">
+        <div>
+          <label>Largura da folha (mm)</label>
+          <input type="number" id="sheetW" value="210" min="50" max="1200">
+        </div>
+        <div>
+          <label>Altura da folha (mm)</label>
+          <input type="number" id="sheetH" value="297" min="50" max="1200">
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>Margem da folha (mm)</label>
+          <input type="number" id="pageMargin" value="8" min="0" max="30">
+        </div>
+        <div>
+          <label>Espaço entre etiquetas (mm)</label>
+          <input type="number" id="gap" value="3" min="0" max="20">
+        </div>
+      </div>
+      <p class="hint" id="gridInfo">—</p>
+    </fieldset>
+
+    <fieldset>
+      <legend>Importar do PDF</legend>
+      <p class="hint" style="margin-top:0;">Escolha como os dados aparecem no PDF. Os números identificam cada etiqueta e o QR original é recortado da própria página do PDF e colocado no layout.</p>
+      <label>Arquivo PDF</label>
+      <input type="file" id="pdfInput" accept="application/pdf" style="width:100%;padding:7px 0;font-size:12.5px;">
+
+      <label>Formato do PDF</label>
+      <select id="importMode" style="width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:4px;font-size:12.5px;">
+        <option value="labels" selected>Por rótulos (ex: "Nome do equipamento", "Identificador")</option>
+        <option value="sequential">Sequencial, sem rótulos (grupos de 3 linhas)</option>
+      </select>
+
+      <div id="labelModeWrap">
+        <label>Rótulo do número menor (fica em cima, ex: nome do equipamento)</label>
+        <input type="text" id="labelCurto" value="Nome do equipamento">
+        <label>Rótulo do número maior (fica embaixo, ex: identificador)</label>
+        <input type="text" id="labelLongo" value="Identificador">
+        <label>Rótulo do QR (deixe em branco se o PDF não tiver um rótulo próprio pra ele)</label>
+        <input type="text" id="labelQr" value="">
+        <p class="hint">O Claude procura essas palavras no texto do PDF (não precisa ser igual maiúscula/minúscula) e pega o valor que vem logo depois — na mesma linha ou na linha seguinte. Qualquer outra linha que não bater com nenhum rótulo é ignorada.</p>
+      </div>
+
+      <div id="sequentialModeWrap" style="display:none;">
+        <label>Ordem em que os dados se repetem no PDF</label>
+        <div class="row">
+          <div>
+            <select id="order1" style="width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:4px;font-size:12.5px;">
+              <option value="qr">QR</option>
+              <option value="curto">Número</option>
+              <option value="longo">Código</option>
+            </select>
+          </div>
+          <div>
+            <select id="order2" style="width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:4px;font-size:12.5px;">
+              <option value="qr">QR</option>
+              <option value="curto" selected>Número</option>
+              <option value="longo">Código</option>
+            </select>
+          </div>
+          <div>
+            <select id="order3" style="width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:4px;font-size:12.5px;">
+              <option value="qr">QR</option>
+              <option value="curto">Número</option>
+              <option value="longo" selected>Código</option>
+            </select>
+          </div>
+        </div>
+        <p class="hint">Use este modo só se o PDF não tiver nenhum texto identificando cada número (nesse caso é preciso confiar na ordem fixa).</p>
+      </div>
+
+      <button class="btn-secondary" id="extractPdfBtn" type="button" style="margin-top:8px;">Extrair do PDF e preencher</button>
+
+      <label style="display:flex; align-items:flex-start; gap:8px; margin-top:14px; font-size:12.5px; cursor:pointer;">
+        <input type="checkbox" id="detectQrImages" checked style="margin-top:2px;">
+        <span>Usar o QR Code original do PDF (o QR será recortado da imagem e colocado no layout, sem criar outro).</span>
+      </label>
+
+      <p class="hint" id="pdfStatus"></p>
+    </fieldset>
+
+    <fieldset>
+      <legend>Dados das etiquetas</legend>
+      <label>Um item por linha: número curto ; número longo ; conteúdo do QR (opcional)</label>
+      <textarea id="dataInput" placeholder="267;7191492063323126&#10;268;7191492063323127;https://meusite.com/ativo/268&#10;269;7191492063323128">267;7191492063323126
+268;7191492063323127
+269;7191492063323128</textarea>
+      <p class="hint">Cole aqui os dados copiados do PDF do outro sistema. Aceita ; ou , ou tab como separador. O QR visual usado no layout é o original recortado do PDF.</p>
+      <div class="count" id="itemCount">0 etiquetas</div>
+      <div class="error" id="errorBox"></div>
+    </fieldset>
+    </div>
+
+    <div class="tab-content" data-tab-content="layout">
+    <fieldset>
+      <legend>Estilo da etiqueta</legend>
+      <label for="labelStyle">Escolha um visual</label>
+      <select id="labelStyle">
+        <option value="classic">Clássico</option>
+        <option value="clean">Limpo</option>
+        <option value="graphite">Grafite</option>
+      </select>
+      <p class="hint">O QR original do PDF será mantido em qualquer estilo.</p>
+    </fieldset>
+    <fieldset>
+      <legend>Modelo personalizado</legend>
+      <label for="layoutFile">Arquivo do novo design</label>
+      <input type="file" id="layoutFile" accept="image/png,image/jpeg,image/webp">
+      <div class="layout-preview" id="layoutPreview" hidden>
+        <img id="layoutPreviewImage" alt="Prévia do modelo personalizado">
+        <button class="btn-secondary" id="clearLayoutBtn" type="button">Remover modelo</button>
+      </div>
+      <p class="hint">Envie uma imagem do modelo. Ela será aplicada como fundo em todas as etiquetas, enquanto o QR e os números ficam por cima.</p>
+    </fieldset>
+    <fieldset>
+      <legend>Identidade visual</legend>
+      <label for="accentColor">Cor de destaque</label>
+      <input type="color" id="accentColor" value="#08a8e8" aria-label="Cor de destaque">
+      <p class="hint">Aplica a cor ao número curto e aos detalhes da etiqueta.</p>
+    </fieldset>
+    </div>
+
+    <div class="actions">
+      <button class="btn-primary" id="generateBtn">Gerar etiquetas</button>
+      <button class="btn-secondary" id="printBtn">Imprimir / salvar em PDF</button>
+    </div>
+  </div>
+
+  <div class="sheet-area">
+    <div class="meta-bar">
+      <span id="pageCountLabel">0 folha(s) A4</span>
+      <span>Pré-visualização — a impressão usa apenas as folhas, sem este painel</span>
+    </div>
+    <div id="pages"></div>
+  </div>
+</div>
+<script src="script.js"></script>
+</body>
+</html>
