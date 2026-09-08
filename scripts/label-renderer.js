@@ -28,25 +28,15 @@ export class LabelRenderer {
   buildLabelNode(item) {
     const wrap = document.createElement('div');
     const customLayout = this.getCustomLayout();
-    wrap.className = `label style-${document.getElementById('labelStyle').value}`;
+    wrap.className = `label template-label style-${document.getElementById('labelStyle').value}`;
     wrap.style.setProperty('--label-accent', document.getElementById('accentColor').value);
     if (customLayout) {
       wrap.classList.add('has-custom-layout');
       wrap.style.backgroundImage = `url("${customLayout}")`;
     }
 
-    const companyName = document.getElementById('companyName').value;
-    const companyPhone = document.getElementById('companyPhone').value;
-    const companyEmail = document.getElementById('companyEmail').value;
     wrap.innerHTML = `
-      <div class="head">
-        <img class="logo" src="assets/logo.svg" alt="Logo WH">
-        <div class="company">
-          <div class="name">${companyName}</div>
-          <div class="phone">${companyPhone}</div>
-          <div class="email">${companyEmail}</div>
-        </div>
-      </div>
+      <img class="label-template-image" src="assets/Template.svg" alt="Modelo da etiqueta">
       <div class="qr-wrap"></div>
       <div class="num-short">${item.short}</div>
       <div class="num-long">${item.long}</div>`;
@@ -71,8 +61,8 @@ export class LabelRenderer {
       errorBox.textContent = errors.join(' | ');
     }
 
-    const labelW = parseFloat(document.getElementById('labelW').value) || 40;
-    const labelH = parseFloat(document.getElementById('labelH').value) || 60;
+    const labelW = parseFloat(document.getElementById('labelW').value) || 25.4;
+    const labelH = parseFloat(document.getElementById('labelH').value) || 33.8666;
     const margin = parseFloat(document.getElementById('pageMargin').value) || 8;
     const gap = parseFloat(document.getElementById('gap').value) || 3;
     const sheet = this.getSheetSize();
