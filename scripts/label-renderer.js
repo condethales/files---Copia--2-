@@ -1,8 +1,8 @@
 export class LabelRenderer {
-  static templateSize = { w: 25.4, h: 33.8666 };
-
-  constructor({ parseData }) {
+  constructor({ parseData, getQrImages, getCustomLayout }) {
     this.parseData = parseData;
+    this.getQrImages = getQrImages;
+    this.getCustomLayout = getCustomLayout;
   }
 
   getSheetSize() {
@@ -27,7 +27,13 @@ export class LabelRenderer {
 
   buildLabelNode(item) {
     const wrap = document.createElement('div');
-    wrap.className = 'label template-label';
+    const customLayout = this.getCustomLayout();
+    wrap.className = `label template-label style-${document.getElementById('labelStyle').value}`;
+    wrap.style.setProperty('--label-accent', document.getElementById('accentColor').value);
+    if (customLayout) {
+      wrap.classList.add('has-custom-layout');
+      wrap.style.backgroundImage = `url("${customLayout}")`;
+    }
 
     wrap.innerHTML = `
       <img class="label-template-image" src="assets/Template.svg" alt="Modelo da etiqueta">
@@ -55,7 +61,8 @@ export class LabelRenderer {
       errorBox.textContent = errors.join(' | ');
     }
 
-    const { w: labelW, h: labelH } = LabelRenderer.templateSize;
+    const labelW = parseFloat(document.getElementById('labelW').value) || 25.4;
+    const labelH = parseFloat(document.getElementById('labelH').value) || 33.8666;
     const margin = parseFloat(document.getElementById('pageMargin').value) || 8;
     const gap = parseFloat(document.getElementById('gap').value) || 3;
     const sheet = this.getSheetSize();

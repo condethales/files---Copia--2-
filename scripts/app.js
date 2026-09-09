@@ -1,4 +1,5 @@
 import { LabelDataParser } from './data-parser.js';
+import { CustomLayoutManager } from './layout-manager.js';
 import { LabelRenderer } from './label-renderer.js';
 import { PdfImporter } from './pdf-importer.js';
 
@@ -6,15 +7,28 @@ export class LabelGeneratorApp {
   constructor() {
     this.importedQrImages = [];
     this.parser = new LabelDataParser(() => this.importedQrImages);
+    this.layout = new CustomLayoutManager({ onChange: () => this.renderer.render() });
     this.renderer = new LabelRenderer({
-      parseData: raw => this.parser.parse(raw)
+      parseData: raw => this.parser.parse(raw),
+      getQrImages: () => this.importedQrImages,
+      getCustomLayout: () => this.layout.image
     });
     this.pdfImporter = new PdfImporter();
   }
 
   init() {
+    this.bindTabs();
     this.bindControls();
+    this.layout.init();
     this.renderer.render();
+  }
+
+  bindTabs() {
+    document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => {
+      const selected = tab.dataset.tab;
+      document.querySelectorAll('.tab').forEach(item => item.classList.toggle('is-active', item === tab));
+      document.querySelectorAll('[data-tab-content]').forEach(panel => panel.classList.toggle('is-active', panel.dataset.tabContent === selected));
+    }));
   }
 
   bindControls() {
@@ -28,6 +42,8 @@ export class LabelGeneratorApp {
     });
     document.getElementById('extractPdfBtn').addEventListener('click', () => this.importPdf());
     document.getElementById('generateBtn').addEventListener('click', () => this.renderer.render());
+    document.getElementById('labelStyle').addEventListener('change', () => this.renderer.render());
+    document.getElementById('accentColor').addEventListener('input', () => this.renderer.render());
     document.getElementById('printBtn').addEventListener('click', () => {
       this.renderer.render();
       this.renderer.applyPrintPageSize();
