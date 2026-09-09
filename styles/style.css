@@ -256,14 +256,6 @@
     word-break:break-all;
     background:#f4f3ef;
   }
-  .label.style-clean{border-color:#c8c6c0; border-radius:1mm; background:#fff;}
-  .label.style-clean .head{background:#fff; color:#111; border-bottom-color:#dedbd4;}
-  .label.style-clean .logo{filter:none;}
-  .label.style-clean .qr-wrap, .label.style-clean .num-long{background:#fff;}
-  .label.style-clean .num-short{color:#fff;}
-  .label.style-graphite{border-color:#202326; background:#eef0f1;}
-  .label.style-graphite .head, .label.style-graphite .num-short{background:#30363b;}
-  .label.style-graphite .qr-wrap, .label.style-graphite .num-long{background:#eef0f1;}
 
   /* O SVG é a arte final da etiqueta. Os elementos variáveis ficam sobre ele. */
   .template-label{

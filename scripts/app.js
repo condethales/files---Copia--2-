@@ -7,24 +7,14 @@ export class LabelGeneratorApp {
     this.importedQrImages = [];
     this.parser = new LabelDataParser(() => this.importedQrImages);
     this.renderer = new LabelRenderer({
-      parseData: raw => this.parser.parse(raw),
-      getQrImages: () => this.importedQrImages
+      parseData: raw => this.parser.parse(raw)
     });
     this.pdfImporter = new PdfImporter();
   }
 
   init() {
-    this.bindTabs();
     this.bindControls();
     this.renderer.render();
-  }
-
-  bindTabs() {
-    document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => {
-      const selected = tab.dataset.tab;
-      document.querySelectorAll('.tab').forEach(item => item.classList.toggle('is-active', item === tab));
-      document.querySelectorAll('[data-tab-content]').forEach(panel => panel.classList.toggle('is-active', panel.dataset.tabContent === selected));
-    }));
   }
 
   bindControls() {
