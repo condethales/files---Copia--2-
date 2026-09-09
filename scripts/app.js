@@ -1,6 +1,6 @@
-import { LabelDataParser } from './data-parser.js';
+import { LabelDataParser } from './data-parser.js?v=pdf-grid-fix-1';
 import { LabelRenderer } from './label-renderer.js';
-import { PdfImporter } from './pdf-importer.js';
+import { PdfImporter } from './pdf-importer.js?v=pdf-grid-fix-1';
 
 export class LabelGeneratorApp {
   constructor() {
@@ -20,6 +20,10 @@ export class LabelGeneratorApp {
   bindControls() {
     document.getElementById('sheetPreset').addEventListener('change', event => {
       document.getElementById('customSheetWrap').style.display = event.target.value === 'custom' ? 'flex' : 'none';
+      this.renderer.render();
+    });
+    ['sheetW', 'sheetH', 'pageMargin', 'gap'].forEach(id => {
+      document.getElementById(id).addEventListener('input', () => this.renderer.render());
     });
     document.getElementById('importMode').addEventListener('change', event => {
       const labelsMode = event.target.value === 'labels';
@@ -49,7 +53,7 @@ export class LabelGeneratorApp {
         const shortLabel = document.getElementById('labelCurto').value.trim();
         const longLabel = document.getElementById('labelLongo').value.trim();
         if (!shortLabel || !longLabel) { status.textContent = 'Informe os dois rótulos.'; return; }
-        result = PdfImporter.rowsFromLabels(lines, shortLabel, longLabel, document.getElementById('labelQr').value.trim());
+        result = await this.pdfImporter.extractRowsByLabels(file, shortLabel, longLabel);
         if (!result.rows.length) { status.textContent = 'Não encontrei pares completos com esses rótulos.'; return; }
         status.textContent = `${result.rows.length} etiqueta(s) extraída(s) pelos rótulos. ${result.ignored} linha(s) ignorada(s).`;
       } else {
@@ -66,7 +70,11 @@ export class LabelGeneratorApp {
         status.textContent += qrCodes.length ? ` ${Math.min(rows.length, qrCodes.length)} QR Code(s) mantido(s) do PDF.` : ' Nenhum QR Code foi encontrado.';
       }
       this.importedQrImages = rows.map(row => row.qrImage || '');
-      document.getElementById('dataInput').value = LabelDataParser.rowsToTextareaValue(rows);
+      // O conteúdo do QR pode ter quebras de linha ou separadores. Como a imagem
+      // original já é mantida em importedQrImages, ele não deve entrar no textarea.
+      document.getElementById('dataInput').value = LabelDataParser.rowsToTextareaValue(
+        rows.map(({ curto, longo }) => ({ curto, longo, qr: '' }))
+      );
       this.renderer.render();
     } catch (error) {
       status.textContent = `Não consegui ler esse PDF: ${error.message}`;

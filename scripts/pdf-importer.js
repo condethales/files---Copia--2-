@@ -27,6 +27,22 @@ export class PdfImporter {
     return lines;
   }
 
+  async extractRowsByLabels(file, shortLabel, longLabel) {
+    this.initWorker();
+    const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+    const rows = [];
+    let ignored = 0;
+
+    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
+      const page = await pdf.getPage(pageNumber);
+      const content = await page.getTextContent();
+      const result = PdfImporter.rowsFromTextRuns(PdfImporter.textRuns(content.items), shortLabel, longLabel);
+      rows.push(...result.rows.map(row => ({ ...row, page: pageNumber })));
+      ignored += result.ignored;
+    }
+    return { rows, ignored };
+  }
+
   async decodeQrCodes(file, onProgress) {
     this.initWorker();
     const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
@@ -69,6 +85,53 @@ export class PdfImporter {
 
   static normalize(text) {
     return (text || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  }
+
+  static textRuns(items) {
+    const entries = items.filter(item => item.str?.trim()).map(item => ({
+      text: item.str.trim(), x: item.transform[4], y: item.transform[5], width: item.width || 0
+    }));
+    const lines = [];
+    entries.forEach(entry => {
+      const line = lines.find(candidate => Math.abs(candidate.y - entry.y) < 2);
+      if (line) line.entries.push(entry);
+      else lines.push({ y: entry.y, entries: [entry] });
+    });
+    return lines.flatMap(line => {
+      const runs = [];
+      line.entries.sort((a, b) => a.x - b.x).forEach(entry => {
+        const previous = runs.at(-1);
+        const previousRight = previous ? previous.x + previous.width : 0;
+        if (!previous || entry.x - previousRight > 18) {
+          runs.push({ text: entry.text, x: entry.x, y: line.y, width: entry.width });
+        } else {
+          previous.text += ` ${entry.text}`;
+          previous.width = Math.max(previousRight, entry.x + entry.width) - previous.x;
+        }
+      });
+      return runs;
+    });
+  }
+
+  static rowsFromTextRuns(runs, shortLabel, longLabel) {
+    const normalizedShort = PdfImporter.normalize(shortLabel);
+    const normalizedLong = PdfImporter.normalize(longLabel);
+    const isLabel = (run, label) => PdfImporter.normalize(run.text) === label;
+    const isKnownLabel = run => isLabel(run, normalizedShort) || isLabel(run, normalizedLong);
+    const center = run => run.x + run.width / 2;
+    const below = (reference, candidates) => candidates
+      .filter(candidate => reference.y > candidate.y && Math.abs(center(reference) - center(candidate)) < 45)
+      .sort((a, b) => b.y - a.y);
+    const rows = [];
+    runs.filter(run => isLabel(run, normalizedShort)).forEach(shortHeading => {
+      const longHeading = below(shortHeading, runs).find(run => isLabel(run, normalizedLong));
+      if (!longHeading) return;
+      const shortValue = below(shortHeading, runs).find(run => run.y > longHeading.y && !isKnownLabel(run));
+      const longValue = below(longHeading, runs).find(run => !isKnownLabel(run));
+      if (shortValue && longValue) rows.push({ curto: shortValue.text, longo: longValue.text, qr: '', x: shortHeading.x, y: shortHeading.y });
+    });
+    rows.sort((a, b) => b.y - a.y || a.x - b.x);
+    return { rows, ignored: Math.max(0, runs.length - rows.length * 4) };
   }
 
   static matchLabel(lines, index, label) {
