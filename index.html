@@ -22,7 +22,6 @@
 
     <nav class="tabs" aria-label="Seções do gerador">
       <button class="tab is-active" type="button" data-tab="dados">Dados</button>
-      <button class="tab" type="button" data-tab="layout">Layout</button>
     </nav>
 
     <div class="tab-content is-active" data-tab-content="dados">
@@ -148,35 +147,6 @@
       <p class="hint">Cole aqui os dados copiados do PDF do outro sistema. Aceita ; ou , ou tab como separador. O QR visual usado no layout é o original recortado do PDF.</p>
       <div class="count" id="itemCount">0 etiquetas</div>
       <div class="error" id="errorBox"></div>
-    </fieldset>
-    </div>
-
-    <div class="tab-content" data-tab-content="layout">
-    <fieldset>
-      <legend>Estilo da etiqueta</legend>
-      <label for="labelStyle">Escolha um visual</label>
-      <select id="labelStyle">
-        <option value="classic">Clássico</option>
-        <option value="clean">Limpo</option>
-        <option value="graphite">Grafite</option>
-      </select>
-      <p class="hint">O QR original do PDF será mantido em qualquer estilo.</p>
-    </fieldset>
-    <fieldset>
-      <legend>Modelo personalizado</legend>
-      <label for="layoutFile">Arquivo do novo design</label>
-      <input type="file" id="layoutFile" accept="image/png,image/jpeg,image/webp">
-      <div class="layout-preview" id="layoutPreview" hidden>
-        <img id="layoutPreviewImage" alt="Prévia do modelo personalizado">
-        <button class="btn-secondary" id="clearLayoutBtn" type="button">Remover modelo</button>
-      </div>
-      <p class="hint">Envie uma imagem do modelo. Ela será aplicada como fundo em todas as etiquetas, enquanto o QR e os números ficam por cima.</p>
-    </fieldset>
-    <fieldset>
-      <legend>Identidade visual</legend>
-      <label for="accentColor">Cor de destaque</label>
-      <input type="color" id="accentColor" value="#08a8e8" aria-label="Cor de destaque">
-      <p class="hint">Aplica a cor ao número curto e aos detalhes da etiqueta.</p>
     </fieldset>
     </div>
 

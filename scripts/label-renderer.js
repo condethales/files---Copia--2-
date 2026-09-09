@@ -1,8 +1,7 @@
 export class LabelRenderer {
-  constructor({ parseData, getQrImages, getCustomLayout }) {
+  constructor({ parseData, getQrImages }) {
     this.parseData = parseData;
     this.getQrImages = getQrImages;
-    this.getCustomLayout = getCustomLayout;
   }
 
   getSheetSize() {
@@ -27,13 +26,8 @@ export class LabelRenderer {
 
   buildLabelNode(item) {
     const wrap = document.createElement('div');
-    const customLayout = this.getCustomLayout();
-    wrap.className = `label template-label style-${document.getElementById('labelStyle').value}`;
-    wrap.style.setProperty('--label-accent', document.getElementById('accentColor').value);
-    if (customLayout) {
-      wrap.classList.add('has-custom-layout');
-      wrap.style.backgroundImage = `url("${customLayout}")`;
-    }
+    wrap.className = 'label template-label style-classic';
+    wrap.style.setProperty('--label-accent', '#08a8e8');
 
     wrap.innerHTML = `
       <img class="label-template-image" src="assets/Template.svg" alt="Modelo da etiqueta">
