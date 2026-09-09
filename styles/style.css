@@ -81,11 +81,6 @@
   select, input[type=color]{font-family:var(--sans);}
   select{width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:4px; font-size:13.5px; background:#fff; color:var(--ink);}
   input[type=color]{width:100%; height:38px; padding:3px; border:1px solid var(--line); border-radius:4px; background:#fff; cursor:pointer;}
-  #layoutFile{width:100%; padding:7px 0; font-size:12.5px;}
-  .layout-preview{display:flex; align-items:center; gap:10px; margin-top:10px;}
-  .layout-preview[hidden]{display:none;}
-  .layout-preview img{width:58px; height:58px; object-fit:cover; border:1px solid var(--line); border-radius:4px; background:#f4f3ef;}
-  .layout-preview .btn-secondary{width:auto; padding:8px 10px; font-size:12px;}
   textarea{
     font-family:var(--mono);
     font-size:12.5px;
@@ -261,18 +256,6 @@
     word-break:break-all;
     background:#f4f3ef;
   }
-  .label.style-clean{border-color:#c8c6c0; border-radius:1mm; background:#fff;}
-  .label.style-clean .head{background:#fff; color:#111; border-bottom-color:#dedbd4;}
-  .label.style-clean .logo{filter:none;}
-  .label.style-clean .qr-wrap, .label.style-clean .num-long{background:#fff;}
-  .label.style-clean .num-short{color:#fff;}
-  .label.style-graphite{border-color:#202326; background:#eef0f1;}
-  .label.style-graphite .head, .label.style-graphite .num-short{background:#30363b;}
-  .label.style-graphite .qr-wrap, .label.style-graphite .num-long{background:#eef0f1;}
-  .label.has-custom-layout{background-size:cover; background-position:center; background-repeat:no-repeat;}
-  .label.has-custom-layout .head{background:rgba(17,17,17,.9);}
-  .label.has-custom-layout .qr-wrap{background:rgba(244,243,239,.9);}
-  .label.has-custom-layout .num-long{background:rgba(244,243,239,.9);}
 
   /* O SVG é a arte final da etiqueta. Os elementos variáveis ficam sobre ele. */
   .template-label{
