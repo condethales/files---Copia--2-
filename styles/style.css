@@ -417,4 +417,35 @@
 
   @media print{
     body{background:#fff; color:#111214;}
+    html, body{
+      width:100%;
+      min-height:0;
+      margin:0;
+      padding:0;
+    }
+    .app,
+    .sheet-area,
+    #pages{
+      display:block;
+      width:100%;
+      min-height:0;
+      margin:0;
+      padding:0;
+      overflow:visible;
+    }
+    .panel, .meta-bar{display:none !important;}
+    .page{
+      display:block;
+      position:relative;
+      margin:0 !important;
+      box-shadow:none;
+      break-after:page;
+      page-break-after:always;
+      break-inside:avoid;
+      page-break-inside:avoid;
+    }
+    .page:last-child{
+      break-after:auto;
+      page-break-after:auto;
+    }
   }
