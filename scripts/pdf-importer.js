@@ -59,15 +59,16 @@ export class PdfImporter {
     return { rows, ignored };
   }
 
-  async decodeQrCodes(file, onProgress) {
+  async decodeQrCodes(file, onProgress, rows = []) {
     this.initWorker();
     const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
     const found = [];
 
     for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
       onProgress?.(pageNumber, pdf.numPages);
+
       const page = await pdf.getPage(pageNumber);
-      const viewport = page.getViewport({ scale: 2.5 });
+      const viewport = page.getViewport({ scale: 6 });
       const canvas = document.createElement('canvas');
       canvas.width = Math.ceil(viewport.width);
       canvas.height = Math.ceil(viewport.height);
@@ -75,23 +76,31 @@ export class PdfImporter {
       const context = canvas.getContext('2d', { willReadFrequently: true });
       await page.render({ canvasContext: context, viewport }).promise;
 
-      for (let attempts = 0; attempts < 60; attempts++) {
-        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-        const qr = jsQR(imageData.data, imageData.width, imageData.height);
-        if (!qr) break;
-
+      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+      const pixels = imageData.data;
+      const addFound = qr => {
         const { topLeftCorner, topRightCorner, bottomLeftCorner, bottomRightCorner } = qr.location;
         const xs = [topLeftCorner.x, topRightCorner.x, bottomLeftCorner.x, bottomRightCorner.x];
         const ys = [topLeftCorner.y, topRightCorner.y, bottomLeftCorner.y, bottomRightCorner.y];
         const minX = Math.min(...xs), maxX = Math.max(...xs);
         const minY = Math.min(...ys), maxY = Math.max(...ys);
+        const duplicate = found.some(item => item.page === pageNumber
+          && item.data === qr.data
+          && Math.abs(item.x - minX) < 12
+          && Math.abs(item.y - minY) < 12);
+        if (duplicate) {
+          const existing = found.find(item => item.page === pageNumber
+            && item.data === qr.data
+            && Math.abs(item.x - minX) < 12
+            && Math.abs(item.y - minY) < 12);
+          if (existing && Number.isInteger(qr.rowIndex)) existing.rowIndex = qr.rowIndex;
+          return;
+        }
 
-        const padding = 8;
-        const x = Math.max(0, Math.floor(minX - padding));
-        const y = Math.max(0, Math.floor(minY - padding));
-        const right = Math.min(canvas.width, Math.ceil(maxX + padding));
-        const bottom = Math.min(canvas.height, Math.ceil(maxY + padding));
-
+        const x = Math.max(0, Math.floor(minX - 8));
+        const y = Math.max(0, Math.floor(minY - 8));
+        const right = Math.min(canvas.width, Math.ceil(maxX + 8));
+        const bottom = Math.min(canvas.height, Math.ceil(maxY + 8));
         const crop = document.createElement('canvas');
         crop.width = right - x;
         crop.height = bottom - y;
@@ -102,13 +111,161 @@ export class PdfImporter {
           x: minX,
           y: minY,
           data: qr.data,
-          image: crop.toDataURL('image/png')
+          image: crop.toDataURL('image/png'),
+          rowIndex: qr.rowIndex
         });
+      };
 
-        context.fillStyle = '#fff';
-        context.fillRect(minX - 3, minY - 3, maxX - minX + 6, maxY - minY + 6);
+      for (let attempts = 0; attempts < 180; attempts++) {
+        const qr = jsQR(pixels, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
+        if (!qr) break;
+
+        const { topLeftCorner, topRightCorner, bottomLeftCorner, bottomRightCorner } = qr.location;
+        const xs = [topLeftCorner.x, topRightCorner.x, bottomLeftCorner.x, bottomRightCorner.x];
+        const ys = [topLeftCorner.y, topRightCorner.y, bottomLeftCorner.y, bottomRightCorner.y];
+        const minX = Math.min(...xs), maxX = Math.max(...xs);
+        const minY = Math.min(...ys), maxY = Math.max(...ys);
+
+        addFound(qr);
+
+        const startX = Math.max(0, Math.floor(minX - 4));
+        const startY = Math.max(0, Math.floor(minY - 4));
+        const endX = Math.min(canvas.width, Math.ceil(maxX + 4));
+        const endY = Math.min(canvas.height, Math.ceil(maxY + 4));
+
+        for (let py = startY; py < endY; py++) {
+          for (let px = startX; px < endX; px++) {
+            const offset = (py * imageData.width + px) * 4;
+            pixels[offset] = 255;
+            pixels[offset + 1] = 255;
+            pixels[offset + 2] = 255;
+            pixels[offset + 3] = 255;
+          }
+        }
+      }
+
+      // A full-page scan can miss small codes when several are close together.
+      // Overlapping tiles give jsQR a larger effective QR area without changing the PDF layout.
+      const tileColumns = 6;
+      const tileRows = 6;
+      const overlap = 0.2;
+      const tileWidth = Math.ceil(canvas.width / tileColumns * (1 + overlap));
+      const tileHeight = Math.ceil(canvas.height / tileRows * (1 + overlap));
+      for (let tileRow = 0; tileRow < tileRows; tileRow++) {
+        for (let tileColumn = 0; tileColumn < tileColumns; tileColumn++) {
+          const tileX = Math.max(0, Math.floor(tileColumn * canvas.width / tileColumns - tileWidth * overlap / 2));
+          const tileY = Math.max(0, Math.floor(tileRow * canvas.height / tileRows - tileHeight * overlap / 2));
+          const actualWidth = Math.min(tileWidth, canvas.width - tileX);
+          const actualHeight = Math.min(tileHeight, canvas.height - tileY);
+          const tile = document.createElement('canvas');
+          tile.width = actualWidth;
+          tile.height = actualHeight;
+          const tileContext = tile.getContext('2d', { willReadFrequently: true });
+          tileContext.drawImage(canvas, tileX, tileY, actualWidth, actualHeight, 0, 0, actualWidth, actualHeight);
+          const tileData = tileContext.getImageData(0, 0, actualWidth, actualHeight);
+          for (let attempts = 0; attempts < 30; attempts++) {
+            const qr = jsQR(tileData.data, actualWidth, actualHeight, { inversionAttempts: 'attemptBoth' });
+            if (!qr) break;
+
+            const translatePoint = point => ({ x: point.x + tileX, y: point.y + tileY });
+            addFound({
+              data: qr.data,
+              location: {
+                topLeftCorner: translatePoint(qr.location.topLeftCorner),
+                topRightCorner: translatePoint(qr.location.topRightCorner),
+                bottomLeftCorner: translatePoint(qr.location.bottomLeftCorner),
+                bottomRightCorner: translatePoint(qr.location.bottomRightCorner)
+              }
+            });
+
+            const points = Object.values(qr.location);
+            const xs = points.map(point => point.x);
+            const ys = points.map(point => point.y);
+            const startX = Math.max(0, Math.floor(Math.min(...xs) - 8));
+            const startY = Math.max(0, Math.floor(Math.min(...ys) - 8));
+            const endX = Math.min(actualWidth, Math.ceil(Math.max(...xs) + 8));
+            const endY = Math.min(actualHeight, Math.ceil(Math.max(...ys) + 8));
+            for (let py = startY; py < endY; py++) {
+              for (let px = startX; px < endX; px++) {
+                const offset = (py * actualWidth + px) * 4;
+                tileData.data[offset] = 255;
+                tileData.data[offset + 1] = 255;
+                tileData.data[offset + 2] = 255;
+                tileData.data[offset + 3] = 255;
+              }
+            }
+          }
+        }
+      }
+
+      // The labels form a 5 x 3 grid. Decode each cell separately so neighboring
+      // QR codes cannot hide one another from jsQR.
+      const pageCells = rows
+        .filter(row => (row.page ?? 1) === pageNumber && Number.isFinite(row.x) && Number.isFinite(row.y))
+        .map(row => {
+          const point = viewport.convertToViewportPoint(row.x, row.y);
+          return { x: point[0], y: point[1], row };
+        });
+      const columnCenters = pageCells.map(cell => cell.x).sort((a, b) => a - b).reduce((centers, centerX) => {
+        if (!centers.length || Math.abs(centers.at(-1) - centerX) > 4) centers.push(centerX);
+        return centers;
+      }, []);
+      const rowCenters = pageCells.map(cell => cell.y).sort((a, b) => a - b).reduce((centers, centerY) => {
+        if (!centers.length || Math.abs(centers.at(-1) - centerY) > 4) centers.push(centerY);
+        return centers;
+      }, []);
+      for (let rowIndex = 0; rowIndex < rowCenters.length; rowIndex++) {
+        const centerY = rowCenters[rowIndex];
+        const top = Math.max(0, Math.floor(rowIndex ? (rowCenters[rowIndex - 1] + centerY) / 2 : 0));
+        const bottom = Math.min(canvas.height, Math.ceil(
+          rowIndex < rowCenters.length - 1 ? (centerY + rowCenters[rowIndex + 1]) / 2 : canvas.height
+        ));
+        for (let columnIndex = 0; columnIndex < columnCenters.length; columnIndex++) {
+          const centerX = columnCenters[columnIndex];
+          const left = Math.max(0, Math.floor(columnIndex ? (columnCenters[columnIndex - 1] + centerX) / 2 : 0));
+          const right = Math.min(canvas.width, Math.ceil(
+            columnIndex < columnCenters.length - 1 ? (centerX + columnCenters[columnIndex + 1]) / 2 : canvas.width
+          ));
+          if (right <= left || bottom <= top) continue;
+          const cell = pageCells.find(candidate => Math.abs(candidate.x - centerX) <= 4
+            && Math.abs(candidate.y - centerY) <= 4);
+
+          const band = context.getImageData(left, top, right - left, bottom - top);
+          for (let attempts = 0; attempts < 3; attempts++) {
+            const qr = jsQR(band.data, band.width, band.height, { inversionAttempts: 'attemptBoth' });
+          if (!qr) break;
+          const translatePoint = point => ({ x: point.x + left, y: point.y + top });
+          addFound({
+            data: qr.data,
+              rowIndex: cell ? rows.indexOf(cell.row) : undefined,
+            location: {
+              topLeftCorner: translatePoint(qr.location.topLeftCorner),
+              topRightCorner: translatePoint(qr.location.topRightCorner),
+              bottomLeftCorner: translatePoint(qr.location.bottomLeftCorner),
+              bottomRightCorner: translatePoint(qr.location.bottomRightCorner)
+            }
+          });
+
+          const points = Object.values(qr.location);
+          const xs = points.map(point => point.x);
+          const ys = points.map(point => point.y);
+          const startX = Math.max(0, Math.floor(Math.min(...xs) - 8));
+          const startY = Math.max(0, Math.floor(Math.min(...ys) - 8));
+          const endX = Math.min(band.width, Math.ceil(Math.max(...xs) + 8));
+          const endY = Math.min(band.height, Math.ceil(Math.max(...ys) + 8));
+          for (let py = startY; py < endY; py++) {
+            for (let px = startX; px < endX; px++) {
+              const offset = (py * band.width + px) * 4;
+              band.data[offset] = 255;
+              band.data[offset + 1] = 255;
+              band.data[offset + 2] = 255;
+              band.data[offset + 3] = 255;
+            }
+          }
+        }
       }
     }
+      }
 
     return found.sort((a, b) => a.page - b.page || a.y - b.y || a.x - b.x);
   }
