@@ -59,13 +59,72 @@ export class PdfImporter {
     return { rows, ignored };
   }
 
+  createQrWorkerPool(size) {
+    let workers;
+    try {
+      workers = Array.from({ length: size }, () => new Worker('scripts/qr-worker.js'));
+    } catch {
+      return {
+        run: (imageData, width, height) => Promise.resolve(
+          jsQR(imageData, width, height, { inversionAttempts: 'attemptBoth' })
+        ),
+        terminate: () => {}
+      };
+    }
+    const available = [...workers];
+    const queue = [];
+    const pending = new Map();
+    let nextId = 0;
+
+    const dispatch = () => {
+      while (available.length && queue.length) {
+        const worker = available.pop();
+        const task = queue.shift();
+        pending.set(task.id, { ...task, worker });
+        worker.postMessage({
+          id: task.id,
+          buffer: task.buffer,
+          width: task.width,
+          height: task.height
+        }, [task.buffer]);
+      }
+    };
+
+    workers.forEach(worker => {
+      worker.onmessage = event => {
+        const task = pending.get(event.data.id);
+        if (!task) return;
+        pending.delete(event.data.id);
+        available.push(task.worker);
+        task.resolve(event.data.result);
+        dispatch();
+      };
+      worker.onerror = error => {
+        for (const [id, task] of pending) {
+          if (task.worker !== worker) continue;
+          pending.delete(id);
+          task.reject(error);
+        }
+        dispatch();
+      };
+    });
+
+    return {
+      run: (imageData, width, height) => new Promise((resolve, reject) => {
+        queue.push({ id: nextId++, buffer: imageData.buffer, width, height, resolve, reject });
+        dispatch();
+      }),
+      terminate: () => workers.forEach(worker => worker.terminate())
+    };
+  }
+
   async decodeQrCodes(file, onProgress, rows = []) {
     this.initWorker();
     const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
     const found = [];
+    const qrPool = this.createQrWorkerPool(Math.min(4, navigator.hardwareConcurrency || 4));
 
-    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
-      onProgress?.(pageNumber, pdf.numPages);
+    const decodePage = async pageNumber => {
 
       const page = await pdf.getPage(pageNumber);
       const viewport = page.getViewport({ scale: 6 });
@@ -78,6 +137,8 @@ export class PdfImporter {
 
       const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
       const pixels = imageData.data;
+      const hasGridRows = rows.some(row => (row.page ?? 1) === pageNumber
+        && Number.isFinite(row.x) && Number.isFinite(row.y));
       const addFound = qr => {
         const { topLeftCorner, topRightCorner, bottomLeftCorner, bottomRightCorner } = qr.location;
         const xs = [topLeftCorner.x, topRightCorner.x, bottomLeftCorner.x, bottomRightCorner.x];
@@ -116,7 +177,7 @@ export class PdfImporter {
         });
       };
 
-      for (let attempts = 0; attempts < 180; attempts++) {
+      if (!hasGridRows) for (let attempts = 0; attempts < 180; attempts++) {
         const qr = jsQR(pixels, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
         if (!qr) break;
 
@@ -151,7 +212,7 @@ export class PdfImporter {
       const overlap = 0.2;
       const tileWidth = Math.ceil(canvas.width / tileColumns * (1 + overlap));
       const tileHeight = Math.ceil(canvas.height / tileRows * (1 + overlap));
-      for (let tileRow = 0; tileRow < tileRows; tileRow++) {
+      if (!hasGridRows) for (let tileRow = 0; tileRow < tileRows; tileRow++) {
         for (let tileColumn = 0; tileColumn < tileColumns; tileColumn++) {
           const tileX = Math.max(0, Math.floor(tileColumn * canvas.width / tileColumns - tileWidth * overlap / 2));
           const tileY = Math.max(0, Math.floor(tileRow * canvas.height / tileRows - tileHeight * overlap / 2));
@@ -214,6 +275,7 @@ export class PdfImporter {
         if (!centers.length || Math.abs(centers.at(-1) - centerY) > 4) centers.push(centerY);
         return centers;
       }, []);
+      const cellJobs = [];
       for (let rowIndex = 0; rowIndex < rowCenters.length; rowIndex++) {
         const centerY = rowCenters[rowIndex];
         const top = Math.max(0, Math.floor(rowIndex ? (rowCenters[rowIndex - 1] + centerY) / 2 : 0));
@@ -231,9 +293,19 @@ export class PdfImporter {
             && Math.abs(candidate.y - centerY) <= 4);
 
           const band = context.getImageData(left, top, right - left, bottom - top);
-          for (let attempts = 0; attempts < 3; attempts++) {
-            const qr = jsQR(band.data, band.width, band.height, { inversionAttempts: 'attemptBoth' });
-          if (!qr) break;
+          cellJobs.push({
+            left,
+            top,
+            cell,
+            promise: qrPool.run(band.data, band.width, band.height)
+          });
+        }
+      }
+
+      await Promise.all(cellJobs.map(async job => {
+        const qr = await job.promise;
+        if (!qr) return;
+        const { left, top, cell } = job;
           const translatePoint = point => ({ x: point.x + left, y: point.y + top });
           addFound({
             data: qr.data,
@@ -245,26 +317,25 @@ export class PdfImporter {
               bottomRightCorner: translatePoint(qr.location.bottomRightCorner)
             }
           });
+      }));
+      };
 
-          const points = Object.values(qr.location);
-          const xs = points.map(point => point.x);
-          const ys = points.map(point => point.y);
-          const startX = Math.max(0, Math.floor(Math.min(...xs) - 8));
-          const startY = Math.max(0, Math.floor(Math.min(...ys) - 8));
-          const endX = Math.min(band.width, Math.ceil(Math.max(...xs) + 8));
-          const endY = Math.min(band.height, Math.ceil(Math.max(...ys) + 8));
-          for (let py = startY; py < endY; py++) {
-            for (let px = startX; px < endX; px++) {
-              const offset = (py * band.width + px) * 4;
-              band.data[offset] = 255;
-              band.data[offset + 1] = 255;
-              band.data[offset + 2] = 255;
-              band.data[offset + 3] = 255;
-            }
-          }
+      const concurrency = Math.min(4, pdf.numPages);
+      let nextPage = 1;
+      let completedPages = 0;
+      const worker = async () => {
+        while (true) {
+          const pageNumber = nextPage++;
+          if (pageNumber > pdf.numPages) return;
+          await decodePage(pageNumber);
+          completedPages++;
+          onProgress?.(completedPages, pdf.numPages);
         }
-      }
-    }
+      };
+      try {
+        await Promise.all(Array.from({ length: concurrency }, worker));
+      } finally {
+        qrPool.terminate();
       }
 
     return found.sort((a, b) => a.page - b.page || a.y - b.y || a.x - b.x);

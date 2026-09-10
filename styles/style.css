@@ -144,6 +144,38 @@
     margin-top:10px;
     display:none;
   }
+  .processing-overlay{
+    position:fixed;
+    inset:0;
+    z-index:1000;
+    display:none;
+    place-items:center;
+    background:rgba(3,9,15,.72);
+    backdrop-filter:blur(3px);
+  }
+  .processing-overlay.is-visible{display:grid;}
+  .processing-card{
+    display:grid;
+    justify-items:center;
+    gap:10px;
+    min-width:220px;
+    padding:24px 28px;
+    border:1px solid #294356;
+    border-radius:12px;
+    background:#0b1722;
+    color:#f4f7fb;
+    box-shadow:0 16px 44px rgba(0,0,0,.35);
+  }
+  .processing-card span{font-size:12px; color:#91a1b0;}
+  .processing-spinner{
+    width:30px;
+    height:30px;
+    border:3px solid #294356;
+    border-top-color:#08a8e8;
+    border-radius:50%;
+    animation:processing-spin .8s linear infinite;
+  }
+  @keyframes processing-spin{to{transform:rotate(360deg);}}
 
   .sheet-area{
     padding:32px;

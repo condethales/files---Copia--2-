@@ -17,6 +17,13 @@ export class LabelGeneratorApp {
     this.renderer.render();
   }
 
+  setProcessing(isProcessing, message = 'Aguarde...') {
+    const overlay = document.getElementById('processingOverlay');
+    overlay.classList.toggle('is-visible', isProcessing);
+    overlay.setAttribute('aria-busy', String(isProcessing));
+    document.getElementById('processingMessage').textContent = message;
+  }
+
   bindControls() {
     document.getElementById('sheetPreset').addEventListener('change', event => {
       document.getElementById('customSheetWrap').style.display = event.target.value === 'custom' ? 'flex' : 'none';
@@ -38,6 +45,7 @@ export class LabelGeneratorApp {
     const status = document.getElementById('pdfStatus');
     const file = document.getElementById('pdfInput').files[0];
     if (!file) { status.textContent = 'Selecione um arquivo PDF primeiro.'; return; }
+    this.setProcessing(true, 'Lendo texto e preparando as páginas...');
     try {
       status.textContent = 'Lendo o texto do PDF...';
       const lines = await this.pdfImporter.extractLines(file);
@@ -62,7 +70,11 @@ export class LabelGeneratorApp {
 
       status.textContent = `${result.rows.length} etiqueta(s) extraída(s) pelos rótulos. ${result.ignored} linha(s) ignorada(s).`;
       const rows = result.rows;
-      const qrCodes = await this.pdfImporter.decodeQrCodes(file, (page, total) => { status.textContent = `Decodificando QR Code — página ${page} de ${total}...`; }, rows);
+      const qrCodes = await this.pdfImporter.decodeQrCodes(file, (page, total) => {
+        const message = `Decodificando QR Code — página ${page} de ${total}...`;
+        status.textContent = message;
+        this.setProcessing(true, message);
+      }, rows);
 
       const qrByPage = qrCodes.reduce((map, qr) => {
         map[qr.page] ??= [];
@@ -108,6 +120,8 @@ export class LabelGeneratorApp {
     } catch (error) {
       const detail = error && error.message ? error.message : String(error);
       status.textContent = `Não consegui ler esse PDF. Etapa: texto do PDF -> rótulos -> QR. Motivo técnico: ${detail}. Se a etapa foi texto do PDF, confirme que o arquivo não é uma imagem digitalizada; se foi rótulos, revise o layout do rótulo; se foi QR, confirme que o código realmente fica visível nos quadrados do PDF.`;
+    } finally {
+      this.setProcessing(false);
     }
   }
 }

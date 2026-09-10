@@ -70,6 +70,7 @@ export class LabelRenderer {
     }
     const totalPages = Math.ceil(items.length / perPage);
     document.getElementById('pageCountLabel').textContent = `${totalPages} folha(s) (${sheet.w}x${sheet.h}mm)`;
+    const pagesFragment = document.createDocumentFragment();
     for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
       const page = document.createElement('div');
       page.className = 'page';
@@ -85,8 +86,9 @@ export class LabelRenderer {
       grid.style.gap = `${gap}mm`;
       items.slice(pageIndex * perPage, (pageIndex + 1) * perPage).forEach(item => grid.appendChild(this.buildLabelNode(item)));
       page.appendChild(grid);
-      pages.appendChild(page);
+      pagesFragment.appendChild(page);
     }
+    pages.appendChild(pagesFragment);
   }
 
   applyPrintPageSize() {
