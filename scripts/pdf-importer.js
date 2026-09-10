@@ -1,15 +1,28 @@
 export class PdfImporter {
   static workerSource = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
+  constructor() {
+    this.pdfCache = new WeakMap();
+  }
+
   initWorker() {
     if (pdfjsLib.GlobalWorkerOptions.workerSrc !== PdfImporter.workerSource) {
       pdfjsLib.GlobalWorkerOptions.workerSrc = PdfImporter.workerSource;
     }
   }
 
+  async getPdf(file) {
+    if (!this.pdfCache.has(file)) {
+      this.pdfCache.set(file, file.arrayBuffer().then(data => {
+        this.initWorker();
+        return pdfjsLib.getDocument({ data }).promise;
+      }));
+    }
+    return this.pdfCache.get(file);
+  }
+
   async extractLines(file) {
-    this.initWorker();
-    const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+    const pdf = await this.getPdf(file);
     const lines = [];
 
     for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
@@ -22,8 +35,7 @@ export class PdfImporter {
   }
 
   async extractRowsByLabels(file, shortLabel, longLabel, qrLabel) {
-    this.initWorker();
-    const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+    const pdf = await this.getPdf(file);
     const rows = [];
     let ignored = 0;
 
@@ -41,8 +53,7 @@ export class PdfImporter {
   }
 
   async extractRowsByTextRuns(file, shortLabel, longLabel) {
-    this.initWorker();
-    const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+    const pdf = await this.getPdf(file);
     const rows = [];
     let ignored = 0;
 
@@ -119,15 +130,23 @@ export class PdfImporter {
   }
 
   async decodeQrCodes(file, onProgress, rows = []) {
-    this.initWorker();
-    const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+    const pdf = await this.getPdf(file);
     const found = [];
-    const qrPool = this.createQrWorkerPool(Math.min(4, navigator.hardwareConcurrency || 4));
+    const qrPool = this.createQrWorkerPool(Math.min(6, Math.max(2, navigator.hardwareConcurrency || 6)));
+    const rowsByPage = rows.reduce((map, row) => {
+      const page = row.page ?? 1;
+      map[page] ??= [];
+      map[page].push(row);
+      return map;
+    }, {});
 
     const decodePage = async pageNumber => {
 
       const page = await pdf.getPage(pageNumber);
-      const viewport = page.getViewport({ scale: 6 });
+      const pageRows = rowsByPage[pageNumber] || [];
+      const hasGridRows = pageRows.some(row =>
+        Number.isFinite(row.x) && Number.isFinite(row.y));
+      const viewport = page.getViewport({ scale: hasGridRows ? 4 : 2.5 });
       const canvas = document.createElement('canvas');
       canvas.width = Math.ceil(viewport.width);
       canvas.height = Math.ceil(viewport.height);
@@ -135,10 +154,6 @@ export class PdfImporter {
       const context = canvas.getContext('2d', { willReadFrequently: true });
       await page.render({ canvasContext: context, viewport }).promise;
 
-      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-      const pixels = imageData.data;
-      const hasGridRows = rows.some(row => (row.page ?? 1) === pageNumber
-        && Number.isFinite(row.x) && Number.isFinite(row.y));
       const addFound = qr => {
         const { topLeftCorner, topRightCorner, bottomLeftCorner, bottomRightCorner } = qr.location;
         const xs = [topLeftCorner.x, topRightCorner.x, bottomLeftCorner.x, bottomRightCorner.x];
@@ -177,7 +192,10 @@ export class PdfImporter {
         });
       };
 
-      if (!hasGridRows) for (let attempts = 0; attempts < 180; attempts++) {
+      if (!hasGridRows) {
+        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+        const pixels = imageData.data;
+        for (let attempts = 0; attempts < 180; attempts++) {
         const qr = jsQR(pixels, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
         if (!qr) break;
 
@@ -202,6 +220,7 @@ export class PdfImporter {
             pixels[offset + 2] = 255;
             pixels[offset + 3] = 255;
           }
+        }
         }
       }
 
@@ -261,8 +280,8 @@ export class PdfImporter {
 
       // The labels form a 5 x 3 grid. Decode each cell separately so neighboring
       // QR codes cannot hide one another from jsQR.
-      const pageCells = rows
-        .filter(row => (row.page ?? 1) === pageNumber && Number.isFinite(row.x) && Number.isFinite(row.y))
+      const pageCells = pageRows
+        .filter(row => Number.isFinite(row.x) && Number.isFinite(row.y))
         .map(row => {
           const point = viewport.convertToViewportPoint(row.x, row.y);
           return { x: point[0], y: point[1], row };
