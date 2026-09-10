@@ -25,11 +25,6 @@ export class LabelGeneratorApp {
     ['sheetW', 'sheetH', 'pageMargin', 'gap'].forEach(id => {
       document.getElementById(id).addEventListener('input', () => this.renderer.render());
     });
-    document.getElementById('importMode').addEventListener('change', event => {
-      const labelsMode = event.target.value === 'labels';
-      document.getElementById('labelModeWrap').style.display = labelsMode ? 'block' : 'none';
-      document.getElementById('sequentialModeWrap').style.display = labelsMode ? 'none' : 'block';
-    });
     document.getElementById('extractPdfBtn').addEventListener('click', () => this.importPdf());
     document.getElementById('generateBtn').addEventListener('click', () => this.renderer.render());
     document.getElementById('printBtn').addEventListener('click', () => {
@@ -46,29 +41,34 @@ export class LabelGeneratorApp {
     try {
       status.textContent = 'Lendo o texto do PDF...';
       const lines = await this.pdfImporter.extractLines(file);
-      if (!lines.length) { status.textContent = 'Não encontrei texto neste PDF.'; return; }
-      const mode = document.getElementById('importMode').value;
-      let result;
-      if (mode === 'labels') {
-        const shortLabel = document.getElementById('labelCurto').value.trim();
-        const longLabel = document.getElementById('labelLongo').value.trim();
-        if (!shortLabel || !longLabel) { status.textContent = 'Informe os dois rótulos.'; return; }
-        result = await this.pdfImporter.extractRowsByLabels(file, shortLabel, longLabel);
-        if (!result.rows.length) { status.textContent = 'Não encontrei pares completos com esses rótulos.'; return; }
-        status.textContent = `${result.rows.length} etiqueta(s) extraída(s) pelos rótulos. ${result.ignored} linha(s) ignorada(s).`;
-      } else {
-        result = PdfImporter.rowsFromSequence(lines, ['order1', 'order2', 'order3'].map(id => document.getElementById(id).value));
-        if (!result.rows.length) { status.textContent = 'Não consegui formar grupos de 3 linhas neste PDF.'; return; }
-        status.textContent = `${result.rows.length} etiqueta(s) extraída(s).${result.leftover ? ` ${result.leftover} linha(s) final(is) ignorada(s).` : ''}`;
+      if (!lines.length) {
+        status.textContent = 'Não encontrei texto legível no documento PDF. Verifique se o arquivo é texto e não uma imagem digitalizada ou uma página protegida.';
+        return;
       }
+
+      const shortLabel = 'Nome do equipamento';
+      const longLabel = 'Identificador';
+      const qrLabel = '';
+
+      let result = await this.pdfImporter.extractRowsByLabels(file, shortLabel, longLabel, qrLabel);
+      if (!result.rows.length) {
+        const fallback = await this.pdfImporter.extractRowsByTextRuns(file, shortLabel, longLabel);
+        if (fallback.rows.length) {
+          result = fallback;
+        } else {
+          const preview = lines.slice(0, 12).map(line => line.trim()).filter(Boolean).join(' | ');
+          status.textContent = `Não encontrei pares completos com esses rótulos. Procurei “${shortLabel}” e “${longLabel}” no PDF, mas o texto não apareceu com a ordem esperada. O PDF pode estar em layout diferente, com colunas ou com imagem digitalizada. Texto lido: ${preview || 'nenhum trecho visível'}`;
+          return;
+        }
+      }
+
+      status.textContent = `${result.rows.length} etiqueta(s) extraída(s) pelos rótulos. ${result.ignored} linha(s) ignorada(s).`;
       const rows = result.rows;
-      if (document.getElementById('detectQrImages').checked) {
-        const qrCodes = await this.pdfImporter.decodeQrCodes(file, (page, total) => { status.textContent = `Decodificando QR Code — página ${page} de ${total}...`; });
-        rows.forEach((row, index) => {
-          if (qrCodes[index]) { row.qr = qrCodes[index].data; row.qrImage = qrCodes[index].image; }
-        });
-        status.textContent += qrCodes.length ? ` ${Math.min(rows.length, qrCodes.length)} QR Code(s) mantido(s) do PDF.` : ' Nenhum QR Code foi encontrado.';
-      }
+      const qrCodes = await this.pdfImporter.decodeQrCodes(file, (page, total) => { status.textContent = `Decodificando QR Code — página ${page} de ${total}...`; });
+      rows.forEach((row, index) => {
+        if (qrCodes[index]) { row.qr = qrCodes[index].data; row.qrImage = qrCodes[index].image; }
+      });
+      status.textContent += qrCodes.length ? ` ${Math.min(rows.length, qrCodes.length)} QR Code(s) mantido(s) do PDF.` : ' Nenhum QR Code foi encontrado na imagem do PDF.';
       this.importedQrImages = rows.map(row => row.qrImage || '');
       // O conteúdo do QR pode ter quebras de linha ou separadores. Como a imagem
       // original já é mantida em importedQrImages, ele não deve entrar no textarea.
@@ -77,7 +77,7 @@ export class LabelGeneratorApp {
       );
       this.renderer.render();
     } catch (error) {
-      status.textContent = `Não consegui ler esse PDF: ${error.message}`;
+      status.textContent = `Não consegui ler esse PDF. Etapa: texto do PDF -> rótulos -> QR. Motivo técnico: ${error.message}`;
     }
   }
 }

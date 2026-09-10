@@ -11,23 +11,17 @@ export class PdfImporter {
     this.initWorker();
     const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
     const lines = [];
+
     for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
       const page = await pdf.getPage(pageNumber);
       const content = await page.getTextContent();
-      let currentLine = '';
-      content.items.forEach(item => {
-        currentLine += item.str;
-        if (item.hasEOL) {
-          if (currentLine.trim()) lines.push(currentLine.trim());
-          currentLine = '';
-        }
-      });
-      if (currentLine.trim()) lines.push(currentLine.trim());
+      lines.push(...PdfImporter.linesFromTextContent(content));
     }
+
     return lines;
   }
 
-  async extractRowsByLabels(file, shortLabel, longLabel) {
+  async extractRowsByLabels(file, shortLabel, longLabel, qrLabel) {
     this.initWorker();
     const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
     const rows = [];
@@ -36,10 +30,32 @@ export class PdfImporter {
     for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
       const page = await pdf.getPage(pageNumber);
       const content = await page.getTextContent();
-      const result = PdfImporter.rowsFromTextRuns(PdfImporter.textRuns(content.items), shortLabel, longLabel);
+      const lines = PdfImporter.linesFromTextContent(content);
+
+      const result = PdfImporter.rowsFromLabels(lines, shortLabel, longLabel, qrLabel);
       rows.push(...result.rows.map(row => ({ ...row, page: pageNumber })));
       ignored += result.ignored;
     }
+
+    return { rows, ignored };
+  }
+
+  async extractRowsByTextRuns(file, shortLabel, longLabel) {
+    this.initWorker();
+    const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+    const rows = [];
+    let ignored = 0;
+
+    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
+      const page = await pdf.getPage(pageNumber);
+      const content = await page.getTextContent();
+      const runs = PdfImporter.textRuns(content.items);
+      const result = PdfImporter.rowsFromTextRuns(runs, shortLabel, longLabel);
+
+      rows.push(...result.rows.map(row => ({ ...row, page: pageNumber })));
+      ignored += result.ignored;
+    }
+
     return { rows, ignored };
   }
 
@@ -47,6 +63,7 @@ export class PdfImporter {
     this.initWorker();
     const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
     const found = [];
+
     for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
       onProgress?.(pageNumber, pdf.numPages);
       const page = await pdf.getPage(pageNumber);
@@ -54,49 +71,108 @@ export class PdfImporter {
       const canvas = document.createElement('canvas');
       canvas.width = Math.ceil(viewport.width);
       canvas.height = Math.ceil(viewport.height);
+
       const context = canvas.getContext('2d', { willReadFrequently: true });
       await page.render({ canvasContext: context, viewport }).promise;
 
       for (let attempts = 0; attempts < 60; attempts++) {
         const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-        const result = jsQR(imageData.data, imageData.width, imageData.height);
-        if (!result) break;
-        const { topLeftCorner, topRightCorner, bottomLeftCorner, bottomRightCorner } = result.location;
+        const qr = jsQR(imageData.data, imageData.width, imageData.height);
+        if (!qr) break;
+
+        const { topLeftCorner, topRightCorner, bottomLeftCorner, bottomRightCorner } = qr.location;
         const xs = [topLeftCorner.x, topRightCorner.x, bottomLeftCorner.x, bottomRightCorner.x];
         const ys = [topLeftCorner.y, topRightCorner.y, bottomLeftCorner.y, bottomRightCorner.y];
         const minX = Math.min(...xs), maxX = Math.max(...xs);
         const minY = Math.min(...ys), maxY = Math.max(...ys);
+
         const padding = 8;
         const x = Math.max(0, Math.floor(minX - padding));
         const y = Math.max(0, Math.floor(minY - padding));
         const right = Math.min(canvas.width, Math.ceil(maxX + padding));
         const bottom = Math.min(canvas.height, Math.ceil(maxY + padding));
+
         const crop = document.createElement('canvas');
         crop.width = right - x;
         crop.height = bottom - y;
         crop.getContext('2d').drawImage(canvas, x, y, crop.width, crop.height, 0, 0, crop.width, crop.height);
-        found.push({ page: pageNumber, x: minX, y: minY, data: result.data, image: crop.toDataURL('image/png') });
+
+        found.push({
+          page: pageNumber,
+          x: minX,
+          y: minY,
+          data: qr.data,
+          image: crop.toDataURL('image/png')
+        });
+
         context.fillStyle = '#fff';
         context.fillRect(minX - 3, minY - 3, maxX - minX + 6, maxY - minY + 6);
       }
     }
+
     return found.sort((a, b) => a.page - b.page || a.y - b.y || a.x - b.x);
+  }
+
+  static linesFromTextContent(content) {
+    const lines = [];
+    const items = Array.isArray(content?.items) ? content.items : [];
+    let currentLine = '';
+
+    for (const item of items) {
+      if (!item || !item.str || !item.str.trim()) continue;
+
+      const piece = PdfImporter.normalizeFieldText(item.str);
+      if (!piece) continue;
+
+      if (!currentLine) {
+        currentLine = piece;
+      } else {
+        currentLine += ' ' + piece;
+      }
+
+      if (item.hasEOL) {
+        const cleaned = PdfImporter.normalizeFieldText(currentLine);
+        if (cleaned) lines.push(cleaned);
+        currentLine = '';
+      }
+    }
+
+    const remaining = PdfImporter.normalizeFieldText(currentLine);
+    if (remaining) lines.push(remaining);
+
+    return lines;
+  }
+
+  static normalizeFieldText(text) {
+    return (text || '').replace(/\r/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
   }
 
   static normalize(text) {
     return (text || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
   }
 
+  static escapeRegex(text) {
+    return (text || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
   static textRuns(items) {
     const entries = items.filter(item => item.str?.trim()).map(item => ({
-      text: item.str.trim(), x: item.transform[4], y: item.transform[5], width: item.width || 0
+      text: item.str.trim(),
+      x: item.transform[4],
+      y: item.transform[5],
+      width: item.width || 0
     }));
+
     const lines = [];
     entries.forEach(entry => {
       const line = lines.find(candidate => Math.abs(candidate.y - entry.y) < 2);
-      if (line) line.entries.push(entry);
-      else lines.push({ y: entry.y, entries: [entry] });
+      if (line) {
+        line.entries.push(entry);
+      } else {
+        lines.push({ y: entry.y, entries: [entry] });
+      }
     });
+
     return lines.flatMap(line => {
       const runs = [];
       line.entries.sort((a, b) => a.x - b.x).forEach(entry => {
@@ -122,57 +198,124 @@ export class PdfImporter {
     const below = (reference, candidates) => candidates
       .filter(candidate => reference.y > candidate.y && Math.abs(center(reference) - center(candidate)) < 45)
       .sort((a, b) => b.y - a.y);
+
     const rows = [];
     runs.filter(run => isLabel(run, normalizedShort)).forEach(shortHeading => {
       const longHeading = below(shortHeading, runs).find(run => isLabel(run, normalizedLong));
       if (!longHeading) return;
+
       const shortValue = below(shortHeading, runs).find(run => run.y > longHeading.y && !isKnownLabel(run));
       const longValue = below(longHeading, runs).find(run => !isKnownLabel(run));
-      if (shortValue && longValue) rows.push({ curto: shortValue.text, longo: longValue.text, qr: '', x: shortHeading.x, y: shortHeading.y });
+      if (shortValue && longValue) {
+        rows.push({ curto: shortValue.text, longo: longValue.text, qr: '', x: shortHeading.x, y: shortHeading.y });
+      }
     });
+
     rows.sort((a, b) => b.y - a.y || a.x - b.x);
     return { rows, ignored: Math.max(0, runs.length - rows.length * 4) };
   }
 
+  static cleanValue(raw) {
+    return PdfImporter.normalizeFieldText(raw)
+      .replace(/^[\s:;\-_,.\t]+/, '')
+      .replace(/[\s:;\-_,.\t]+$/, '')
+      .trim();
+  }
+
   static matchLabel(lines, index, label) {
     if (!label) return null;
-    const line = lines[index];
-    const normalizedLabel = PdfImporter.normalize(label);
-    if (!normalizedLabel) return null;
-    if (PdfImporter.normalize(line) === normalizedLabel) return { value: lines[index + 1] || '', consumed: 2 };
-    if (PdfImporter.normalize(line).startsWith(normalizedLabel)) {
-      const rest = line.slice(label.length).trim().replace(/^[:\-]+/, '').trim();
-      return rest ? { value: rest, consumed: 1 } : { value: lines[index + 1] || '', consumed: 2 };
+
+    const labelNorm = PdfImporter.normalize(label);
+    if (!labelNorm) return null;
+
+    const line = lines[index] || '';
+    const lineNorm = PdfImporter.normalize(line);
+    if (!lineNorm) return null;
+
+    const sameLine = new RegExp(`^${PdfImporter.escapeRegex(labelNorm)}\\s*[:;\\-_,.\\t]*\\s*(.+)$`, 'i').exec(lineNorm);
+    if (sameLine && PdfImporter.cleanValue(sameLine[1])) {
+      return { value: PdfImporter.cleanValue(sameLine[1]), consumed: 1 };
     }
+
+    if (lineNorm === labelNorm || lineNorm.startsWith(labelNorm)) {
+      const rest = PdfImporter.cleanValue(line.slice(label.length));
+      if (rest) {
+        return { value: rest, consumed: 1 };
+      }
+
+      const nextValue = PdfImporter.cleanValue(lines[index + 1] || '');
+      if (nextValue) {
+        return { value: nextValue, consumed: 2 };
+      }
+
+      return { value: '', consumed: 2 };
+    }
+
     return null;
   }
 
   static rowsFromLabels(lines, shortLabel, longLabel, qrLabel) {
     const rows = [];
-    let current = {};
     let ignored = 0;
-    for (let index = 0; index < lines.length;) {
-      let match = PdfImporter.matchLabel(lines, index, shortLabel);
-      if (match) { current.curto = match.value; index += match.consumed; }
-      else if ((match = PdfImporter.matchLabel(lines, index, longLabel))) { current.longo = match.value; index += match.consumed; }
-      else if (qrLabel && (match = PdfImporter.matchLabel(lines, index, qrLabel))) { current.qr = match.value; index += match.consumed; }
-      else { index++; ignored++; }
-      if (current.curto !== undefined && current.longo !== undefined) {
-        rows.push({ curto: current.curto, longo: current.longo, qr: current.qr || '' });
-        current = {};
-      }
-    }
-    return { rows, ignored };
-  }
+    const seen = new Set();
 
-  static rowsFromSequence(lines, order) {
-    const leftover = lines.length % 3;
-    const usableLines = leftover ? lines.slice(0, -leftover) : lines;
-    const rows = [];
-    for (let index = 0; index < usableLines.length; index += 3) {
-      const group = { [order[0]]: usableLines[index], [order[1]]: usableLines[index + 1], [order[2]]: usableLines[index + 2] };
-      rows.push({ curto: group.curto || '', longo: group.longo || '', qr: group.qr || '' });
+    for (let index = 0; index < lines.length; index++) {
+      const short = PdfImporter.matchLabel(lines, index, shortLabel);
+      if (!short) continue;
+
+      const curto = PdfImporter.cleanValue(short.value);
+      if (!curto) {
+        ignored++;
+        continue;
+      }
+
+      const longStart = index + short.consumed;
+      let long = null;
+      let longIndex = -1;
+
+      for (let j = longStart; j < lines.length; j++) {
+        const candidate = PdfImporter.matchLabel(lines, j, longLabel);
+        if (!candidate) continue;
+
+        const longo = PdfImporter.cleanValue(candidate.value);
+        if (!longo) continue;
+
+        long = candidate;
+        longIndex = j;
+        break;
+      }
+
+      if (!long || longIndex < 0) {
+        ignored++;
+        continue;
+      }
+
+      const longo = PdfImporter.cleanValue(long.value);
+      let qr = '';
+
+      if (qrLabel) {
+        const qrStart = longIndex + long.consumed;
+        for (let k = qrStart; k < lines.length; k++) {
+          const qrMatch = PdfImporter.matchLabel(lines, k, qrLabel);
+          if (!qrMatch) continue;
+
+          const value = PdfImporter.cleanValue(qrMatch.value);
+          if (value) {
+            qr = value;
+            break;
+          }
+        }
+      }
+
+      const key = `${curto}|${longo}|${qr}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        rows.push({ curto, longo, qr });
+      }
+
+      index = longIndex + long.consumed - 1;
     }
-    return { rows, leftover };
+
+    return { rows, ignored };
   }
 }

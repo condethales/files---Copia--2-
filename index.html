@@ -68,56 +68,7 @@
       <label>Arquivo PDF</label>
       <input type="file" id="pdfInput" accept="application/pdf" style="width:100%;padding:7px 0;font-size:12.5px;">
 
-      <label>Formato do PDF</label>
-      <select id="importMode" style="width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:4px;font-size:12.5px;">
-        <option value="labels" selected>Por rótulos (ex: "Nome do equipamento", "Identificador")</option>
-        <option value="sequential">Sequencial, sem rótulos (grupos de 3 linhas)</option>
-      </select>
-
-      <div id="labelModeWrap">
-        <label>Rótulo do número menor (fica em cima, ex: nome do equipamento)</label>
-        <input type="text" id="labelCurto" value="Nome do equipamento">
-        <label>Rótulo do número maior (fica embaixo, ex: identificador)</label>
-        <input type="text" id="labelLongo" value="Identificador">
-        <label>Rótulo do QR (deixe em branco se o PDF não tiver um rótulo próprio pra ele)</label>
-        <input type="text" id="labelQr" value="">
-        <p class="hint">O Claude procura essas palavras no texto do PDF (não precisa ser igual maiúscula/minúscula) e pega o valor que vem logo depois — na mesma linha ou na linha seguinte. Qualquer outra linha que não bater com nenhum rótulo é ignorada.</p>
-      </div>
-
-      <div id="sequentialModeWrap" style="display:none;">
-        <label>Ordem em que os dados se repetem no PDF</label>
-        <div class="row">
-          <div>
-            <select id="order1" style="width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:4px;font-size:12.5px;">
-              <option value="qr">QR</option>
-              <option value="curto">Número</option>
-              <option value="longo">Código</option>
-            </select>
-          </div>
-          <div>
-            <select id="order2" style="width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:4px;font-size:12.5px;">
-              <option value="qr">QR</option>
-              <option value="curto" selected>Número</option>
-              <option value="longo">Código</option>
-            </select>
-          </div>
-          <div>
-            <select id="order3" style="width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:4px;font-size:12.5px;">
-              <option value="qr">QR</option>
-              <option value="curto">Número</option>
-              <option value="longo" selected>Código</option>
-            </select>
-          </div>
-        </div>
-        <p class="hint">Use este modo só se o PDF não tiver nenhum texto identificando cada número (nesse caso é preciso confiar na ordem fixa).</p>
-      </div>
-
       <button class="btn-secondary" id="extractPdfBtn" type="button" style="margin-top:8px;">Extrair do PDF e preencher</button>
-
-      <label style="display:flex; align-items:flex-start; gap:8px; margin-top:14px; font-size:12.5px; cursor:pointer;">
-        <input type="checkbox" id="detectQrImages" checked style="margin-top:2px;">
-        <span>Usar o QR Code original do PDF (o QR será recortado da imagem e colocado no layout, sem criar outro).</span>
-      </label>
 
       <p class="hint" id="pdfStatus"></p>
     </fieldset>
