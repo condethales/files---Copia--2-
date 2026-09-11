@@ -17,6 +17,19 @@
   </div>
 </div>
 
+<button class="easter-egg-trigger" id="easterEggTrigger" type="button" title="Abrir surpresa" aria-label="Abrir surpresa">?</button>
+
+<div class="easter-egg-modal" id="easterEggModal" role="dialog" aria-modal="true" aria-labelledby="easterEggTitle" hidden>
+  <div class="easter-egg-backdrop" data-easter-close></div>
+  <div class="easter-egg-card">
+    <button class="easter-egg-close" type="button" data-easter-close aria-label="Fechar surpresa">&times;</button>
+    <h2 id="easterEggTitle">Choooo-o</h2>
+    <div class="easter-egg-video">
+      <iframe id="easterEggVideo" title="Vídeo surpresa" referrerpolicy="strict-origin-when-cross-origin" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
+    </div>
+  </div>
+</div>
+
 <div class="app">
   <div class="panel">
     <div class="brand-row">
