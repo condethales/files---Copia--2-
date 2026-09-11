@@ -38,7 +38,7 @@
 
     <fieldset>
       <legend>Folha de impressão</legend>
-      <p class="hint" style="margin-top:0;">Modelo fixo: Template.svg (25,4 × 33,8666 mm).</p>
+      <p class="hint" style="margin-top:0;">Modelo fixo: Template.svg (28 × 40 mm).</p>
       <label>Tamanho da folha</label>
       <select id="sheetPreset" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:4px;font-size:13.5px;">
         <option value="210x297">A4 (210 x 297mm)</option>
@@ -59,12 +59,18 @@
       </div>
       <div class="row">
         <div>
-          <label>Margem da folha (mm)</label>
-          <input type="number" id="pageMargin" value="8" min="0" max="30">
+          <label>Margem horizontal até o grid (mm)</label>
+          <input type="number" id="pageMarginH" value="25" min="0" max="100">
         </div>
         <div>
+          <label>Margem vertical até o grid (mm)</label>
+          <input type="number" id="pageMarginV" value="35" min="0" max="100">
+        </div>
+      </div>
+      <div class="row">
+        <div>
           <label>Espaço entre etiquetas (mm)</label>
-          <input type="number" id="gap" value="3" min="0" max="20">
+          <input type="number" id="gap" value="2" min="0" max="20">
         </div>
       </div>
       <p class="hint" id="gridInfo">—</p>

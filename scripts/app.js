@@ -29,7 +29,7 @@ export class LabelGeneratorApp {
       document.getElementById('customSheetWrap').style.display = event.target.value === 'custom' ? 'flex' : 'none';
       this.renderer.render();
     });
-    ['sheetW', 'sheetH', 'pageMargin', 'gap'].forEach(id => {
+    ['sheetW', 'sheetH', 'pageMarginH', 'pageMarginV', 'gap'].forEach(id => {
       document.getElementById(id).addEventListener('input', () => this.renderer.render());
     });
     document.getElementById('extractPdfBtn').addEventListener('click', () => this.importPdf());

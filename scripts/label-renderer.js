@@ -1,5 +1,5 @@
 export class LabelRenderer {
-  static templateSize = { w: 25.4, h: 33.8666 };
+  static templateSize = { w: 28, h: 40 };
 
   constructor({ parseData }) {
     this.parseData = parseData;
@@ -17,11 +17,11 @@ export class LabelRenderer {
     return { w, h };
   }
 
-  computeGrid(labelW, labelH, margin, gap, sheet) {
-    const usableW = sheet.w - margin * 2;
-    const usableH = sheet.h - margin * 2;
-    const cols = Math.max(1, Math.floor((usableW + gap) / (labelW + gap)));
-    const rows = Math.max(1, Math.floor((usableH + gap) / (labelH + gap)));
+  computeGrid(labelW, labelH, marginH, marginV, sheet) {
+    const usableW = Math.max(sheet.w - marginH * 2, labelW);
+    const usableH = Math.max(sheet.h - marginV * 2, labelH);
+    const cols = Math.max(1, Math.floor(usableW / labelW));
+    const rows = Math.max(1, Math.floor(usableH / labelH));
     return { cols, rows, perPage: cols * rows };
   }
 
@@ -44,6 +44,46 @@ export class LabelRenderer {
     return wrap;
   }
 
+  buildCutGuide(marginH, marginV, gap, labelW, labelH, cols, rows) {
+    const overlay = document.createElement('div');
+    overlay.className = 'cut-guide-overlay';
+
+    const gridWidth = cols * labelW + Math.max(cols - 1, 0) * gap;
+    const gridHeight = rows * labelH + Math.max(rows - 1, 0) * gap;
+
+    const xPositions = [];
+    for (let c = 0; c < cols; c++) {
+      xPositions.push(marginH + c * (labelW + gap));
+    }
+    xPositions.push(marginH + gridWidth);
+
+    const yPositions = [];
+    for (let r = 0; r < rows; r++) {
+      yPositions.push(marginV + r * (labelH + gap));
+    }
+    yPositions.push(marginV + gridHeight);
+
+    xPositions.forEach(x => {
+      const line = document.createElement('div');
+      line.className = 'cut-line cut-line-vertical';
+      line.style.left = `${x}mm`;
+      line.style.top = `${marginV}mm`;
+      line.style.height = `${gridHeight}mm`;
+      overlay.appendChild(line);
+    });
+
+    yPositions.forEach(y => {
+      const line = document.createElement('div');
+      line.className = 'cut-line cut-line-horizontal';
+      line.style.top = `${y}mm`;
+      line.style.left = `${marginH}mm`;
+      line.style.width = `${gridWidth}mm`;
+      overlay.appendChild(line);
+    });
+
+    return overlay;
+  }
+
   render() {
     const errorBox = document.getElementById('errorBox');
     errorBox.style.display = 'none';
@@ -56,10 +96,10 @@ export class LabelRenderer {
     }
 
     const { w: labelW, h: labelH } = LabelRenderer.templateSize;
-    const margin = parseFloat(document.getElementById('pageMargin').value) || 8;
-    const gap = parseFloat(document.getElementById('gap').value) || 3;
+    const marginH = parseFloat(document.getElementById('pageMarginH').value) || 25;
+    const marginV = parseFloat(document.getElementById('pageMarginV').value) || 35;
     const sheet = this.getSheetSize();
-    const { cols, rows, perPage } = this.computeGrid(labelW, labelH, margin, gap, sheet);
+    const { cols, rows, perPage } = this.computeGrid(labelW, labelH, marginH, marginV, sheet);
     document.getElementById('gridInfo').textContent = `${cols} colunas x ${rows} linhas = ${perPage} etiquetas por folha (${sheet.w}x${sheet.h}mm)`;
 
     const pages = document.getElementById('pages');
@@ -79,13 +119,25 @@ export class LabelRenderer {
       page.style.marginBottom = '24px';
       const grid = document.createElement('div');
       grid.className = 'grid';
-      grid.style.left = `${margin}mm`;
-      grid.style.top = `${margin}mm`;
-      grid.style.gridTemplateColumns = `repeat(${cols}, ${labelW}mm)`;
-      grid.style.gridTemplateRows = `repeat(${rows}, ${labelH}mm)`;
-      grid.style.gap = `${gap}mm`;
-      items.slice(pageIndex * perPage, (pageIndex + 1) * perPage).forEach(item => grid.appendChild(this.buildLabelNode(item)));
+      grid.style.left = `${marginH}mm`;
+      grid.style.top = `${marginV}mm`;
+      grid.style.width = `${cols * labelW}mm`;
+      grid.style.height = `${rows * labelH}mm`;
+      const cells = items.slice(pageIndex * perPage, (pageIndex + 1) * perPage);
+      cells.forEach((item, index) => {
+        const label = this.buildLabelNode(item);
+        const col = index % cols;
+        const row = Math.floor(index / cols);
+        label.style.position = 'absolute';
+        label.style.width = `${labelW - 2 * 2.75}mm`;
+        label.style.height = `${labelH - 2 * 2.75}mm`;
+        label.style.left = `${2.75 + col * labelW}mm`;
+        label.style.top = `${2.75 + row * labelH}mm`;
+        label.style.boxSizing = 'border-box';
+        grid.appendChild(label);
+      });
       page.appendChild(grid);
+      page.appendChild(this.buildCutGuide(marginH, marginV, 0, labelW, labelH, cols, rows));
       pagesFragment.appendChild(page);
     }
     pages.appendChild(pagesFragment);
