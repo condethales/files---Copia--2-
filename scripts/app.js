@@ -25,6 +25,28 @@ export class LabelGeneratorApp {
   }
 
   bindControls() {
+    const easterEggTrigger = document.getElementById('easterEggTrigger');
+    const easterEggModal = document.getElementById('easterEggModal');
+    const easterEggVideo = document.getElementById('easterEggVideo');
+    const closeEasterEgg = () => {
+      easterEggModal.hidden = true;
+      easterEggVideo.src = '';
+      easterEggTrigger.focus();
+    };
+
+    easterEggTrigger.addEventListener('click', () => {
+      easterEggModal.hidden = false;
+      const origin = window.location.origin === 'null' ? '' : `&origin=${encodeURIComponent(window.location.origin)}`;
+      easterEggVideo.src = `https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1${origin}`;
+      easterEggModal.querySelector('.easter-egg-close').focus();
+    });
+    easterEggModal.querySelectorAll('[data-easter-close]').forEach(element => {
+      element.addEventListener('click', closeEasterEgg);
+    });
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && !easterEggModal.hidden) closeEasterEgg();
+    });
+
     document.getElementById('sheetPreset').addEventListener('change', event => {
       document.getElementById('customSheetWrap').style.display = event.target.value === 'custom' ? 'flex' : 'none';
       if (event.target.value === 'grafica') {
