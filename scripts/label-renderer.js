@@ -13,6 +13,9 @@ export class LabelRenderer {
         h: parseFloat(document.getElementById('sheetH').value) || 297
       };
     }
+    if (preset === 'grafica') {
+      return { w: 325, h: 475 };
+    }
     const [w, h] = preset.split('x').map(Number);
     return { w, h };
   }

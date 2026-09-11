@@ -27,6 +27,10 @@ export class LabelGeneratorApp {
   bindControls() {
     document.getElementById('sheetPreset').addEventListener('change', event => {
       document.getElementById('customSheetWrap').style.display = event.target.value === 'custom' ? 'flex' : 'none';
+      if (event.target.value === 'grafica') {
+        document.getElementById('pageMarginH').value = 22;
+        document.getElementById('pageMarginV').value = 37;
+      }
       this.renderer.render();
     });
     ['sheetW', 'sheetH', 'pageMarginH', 'pageMarginV', 'gap'].forEach(id => {
