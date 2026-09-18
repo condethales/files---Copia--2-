@@ -102,6 +102,7 @@ export class LabelRenderer {
     const marginH = parseFloat(document.getElementById('pageMarginH').value) || 25;
     const marginV = parseFloat(document.getElementById('pageMarginV').value) || 35;
     const sheet = this.getSheetSize();
+    const showVisualGrid = document.getElementById('showVisualGrid').checked;
     const { cols, rows, perPage } = this.computeGrid(labelW, labelH, marginH, marginV, sheet);
     document.getElementById('gridInfo').textContent = `${cols} colunas x ${rows} linhas = ${perPage} etiquetas por folha (${sheet.w}x${sheet.h}mm)`;
 
@@ -122,6 +123,7 @@ export class LabelRenderer {
       page.style.marginBottom = '24px';
       const grid = document.createElement('div');
       grid.className = 'grid';
+      grid.classList.toggle('is-hidden', !showVisualGrid);
       grid.style.left = `${marginH}mm`;
       grid.style.top = `${marginV}mm`;
       grid.style.width = `${cols * labelW}mm`;
@@ -132,15 +134,17 @@ export class LabelRenderer {
         const col = index % cols;
         const row = Math.floor(index / cols);
         label.style.position = 'absolute';
-        label.style.width = `${labelW - 2 * 2.75}mm`;
-        label.style.height = `${labelH - 2 * 2.75}mm`;
-        label.style.left = `${2.75 + col * labelW}mm`;
-        label.style.top = `${2.75 + row * labelH}mm`;
+        label.style.width = `${labelW}mm`;
+        label.style.height = `${labelH}mm`;
+        label.style.left = `${col * labelW}mm`;
+        label.style.top = `${row * labelH}mm`;
         label.style.boxSizing = 'border-box';
         grid.appendChild(label);
       });
       page.appendChild(grid);
-      page.appendChild(this.buildCutGuide(marginH, marginV, 0, labelW, labelH, cols, rows));
+      if (showVisualGrid) {
+        page.appendChild(this.buildCutGuide(marginH, marginV, 0, labelW, labelH, cols, rows));
+      }
       pagesFragment.appendChild(page);
     }
     pages.appendChild(pagesFragment);

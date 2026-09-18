@@ -58,6 +58,7 @@ export class LabelGeneratorApp {
     ['sheetW', 'sheetH', 'pageMarginH', 'pageMarginV', 'gap'].forEach(id => {
       document.getElementById(id).addEventListener('input', () => this.renderer.render());
     });
+    document.getElementById('showVisualGrid').addEventListener('change', () => this.renderer.render());
     document.getElementById('extractPdfBtn').addEventListener('click', () => this.importPdf());
     document.getElementById('generateBtn').addEventListener('click', () => this.renderer.render());
     document.getElementById('printBtn').addEventListener('click', () => {

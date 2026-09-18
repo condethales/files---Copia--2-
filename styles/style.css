@@ -68,6 +68,20 @@
   }
   .row{display:flex; gap:10px;}
   .row > div{flex:1;}
+  .toggle-row{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-top:12px;
+    font-size:12.5px;
+    color:var(--ink);
+  }
+  .toggle-row input{
+    width:16px;
+    height:16px;
+    margin:0;
+    accent-color:var(--accent);
+  }
   input[type=text], input[type=number], textarea{
     width:100%;
     padding:8px 10px;
@@ -244,6 +258,10 @@
     background:transparent;
     overflow:hidden;
   }
+  .grid.is-hidden{
+    border-color:transparent;
+    background:transparent;
+  }
   .cut-guide-overlay{
     position:absolute;
     inset:0;
@@ -399,7 +417,7 @@
     background:transparent;
   }
   .template-label .num-short{
-    top:81%;
+    top:77%;
     height:7.5%;
     color:#fff;
     font-size:2.5mm;
@@ -408,7 +426,7 @@
     place-items:center;
   }
   .template-label .num-long{
-    top:90%;
+    top: 85%;
     height:6.6%;
     color:#111;
     font-size:1.75mm;
