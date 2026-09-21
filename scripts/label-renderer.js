@@ -158,6 +158,6 @@ export class LabelRenderer {
       style.id = 'dynamicPageSize';
       document.head.appendChild(style);
     }
-    style.textContent = `@media print { @page { size: ${sheet.w}mm ${sheet.h}mm; margin: 0; } }`;
+    style.textContent = `@page { size: ${sheet.w}mm ${sheet.h}mm; margin: 0; }`;
   }
 }
