@@ -419,7 +419,7 @@
   .template-label .num-short{
     top:77%;
     height:7.5%;
-    color:#fff;
+    color:#ffffff;
     font-size:2.5mm;
     line-height:1.05;
     display:grid;
@@ -428,11 +428,17 @@
   .template-label .num-long{
     top: 85%;
     height:6.6%;
-    color:#111;
+    color:#ffffff;
     font-size:1.75mm;
     line-height:1;
     display:grid;
     place-items:center;
+  }
+
+  .template-label .num-short,
+  .template-label .num-long{
+    -webkit-print-color-adjust:exact;
+    print-color-adjust:exact;
   }
 
   @media print{
